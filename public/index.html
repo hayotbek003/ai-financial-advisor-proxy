@@ -3,34 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Stock Advisor | Secure Deployment</title>
+  <title>AI Stock Advisor | Full-Stack Cloudflare Deployment</title>
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>📈 AI Financial & Stock Market Advisor</h1>
-      <p class="subtitle">Secure Edge-Proxy Architecture with Cloudflare Workers</p>
+      <h1>📈 AI Stock & Financial Advisor</h1>
+      <p class="subtitle">Deploying AI Apps 02: Full-Stack Cloudflare Pages + Edge Proxies</p>
     </header>
 
     <main>
       <section class="card query-box">
-        <label for="stockInput">Enter Stock Ticker or Question:</label>
+        <label for="stockInput">Enter Stock Ticker Symbol:</label>
         <div class="input-row">
-          <input type="text" id="stockInput" placeholder="e.g., TSLA, AAPL, MSFT earnings analysis..." value="AAPL">
+          <input type="text" id="stockInput" placeholder="e.g. AAPL, TSLA, NVDA, MSFT" value="AAPL">
           <button id="askBtn">Analyze Stock</button>
         </div>
       </section>
 
+      <!-- Live Stock Stats from Polygon.io proxy -->
+      <section id="stockCard" class="card stock-stats hidden">
+        <h2>📊 Market Snapshot (<span id="tickerDisplay">AAPL</span>)</h2>
+        <div class="stats-grid">
+          <div class="stat-item"><span class="stat-label">Close:</span> <span id="closePrice" class="stat-val">$0.00</span></div>
+          <div class="stat-item"><span class="stat-label">Open:</span> <span id="openPrice" class="stat-val">$0.00</span></div>
+          <div class="stat-item"><span class="stat-label">Day Change:</span> <span id="dayChange" class="stat-val">0.00%</span></div>
+          <div class="stat-item"><span class="stat-label">Volume:</span> <span id="tradeVolume" class="stat-val">0</span></div>
+        </div>
+      </section>
+
+      <!-- AI Insights from OpenAI proxy -->
       <section class="card result-box">
-        <h2>AI Analysis & Market Outlook</h2>
-        <div id="loader" class="loader hidden">Consulting AI advisor...</div>
-        <div id="resultContent" class="result-content">Click "Analyze Stock" to request secure financial insight through the Cloudflare Worker proxy.</div>
+        <h2>🤖 AI Investment Analysis</h2>
+        <div id="loader" class="loader hidden">Fetching live market data and generating AI analysis...</div>
+        <div id="resultContent" class="result-content">Enter a stock ticker above and click "Analyze Stock" to request real-time data and AI-driven market guidance.</div>
       </section>
     </main>
 
     <footer>
-      <p>Architecture: Client (Cloudflare Pages) ➔ Edge Proxy (Cloudflare Worker) ➔ OpenAI API (GPT-4)</p>
+      <p>Architecture: Client (Cloudflare Pages) ➔ Edge Worker (Polygon + OpenAI Proxy) ➔ GPT-4</p>
     </footer>
   </div>
   <script src="index.js"></script>

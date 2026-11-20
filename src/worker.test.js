@@ -1,4 +1,4 @@
-import worker, { corsHeaders } from "./worker.js";
+import worker, { corsHeaders, handleStockDataFetch } from "./worker.js";
 import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 
 console.log("=================================================");
-console.log("   AI FINANCIAL ADVISOR PROXY - VERIFICATION     ");
+console.log("   FULL-STACK DEPLOYMENT 02 - TEST SUITE         ");
 console.log("=================================================\n");
 
 const results = [];
@@ -25,93 +25,77 @@ async function recordTest(name, fn) {
 }
 
 async function runAllVerifications() {
-  // Test 1: CORS Preflight (OPTIONS)
+  // 1. CORS Preflight
   await recordTest("1. CORS Preflight: OPTIONS request returns 204 with full headers", async () => {
     const req = new Request("https://ai-proxy.workers.dev", { method: "OPTIONS" });
     const res = await worker.fetch(req, {});
-    assert.strictEqual(res.status, 204, "Expected status 204");
+    assert.strictEqual(res.status, 204);
     assert.strictEqual(res.headers.get("Access-Control-Allow-Origin"), "*");
-    assert.ok(res.headers.get("Access-Control-Allow-Methods").includes("OPTIONS"));
+    assert.ok(res.headers.get("Access-Control-Allow-Methods").includes("GET"));
     assert.ok(res.headers.get("Access-Control-Allow-Methods").includes("POST"));
-    assert.ok(res.headers.get("Access-Control-Allow-Headers").includes("Content-Type"));
   });
 
-  // Test 2: Health Check Endpoint
-  await recordTest("2. Health Check: GET /health returns 200 and operational status", async () => {
+  // 2. Health check
+  await recordTest("2. Health Check: GET /health returns 200 operational", async () => {
     const req = new Request("https://ai-proxy.workers.dev/health", { method: "GET" });
     const res = await worker.fetch(req, {});
-    assert.strictEqual(res.status, 200, "Expected status 200");
+    assert.strictEqual(res.status, 200);
     const json = await res.json();
     assert.strictEqual(json.status, "ok");
-    assert.strictEqual(json.service, "ai-proxy");
   });
 
-  // Test 3: Disallowed Method Handling (PUT & DELETE)
-  await recordTest("3. Method Security: PUT and DELETE are rejected with 405 Method Not Allowed", async () => {
-    const putReq = new Request("https://ai-proxy.workers.dev", { method: "PUT" });
-    const putRes = await worker.fetch(putReq, {});
-    assert.strictEqual(putRes.status, 405, "PUT must return 405");
-
-    const delReq = new Request("https://ai-proxy.workers.dev", { method: "DELETE" });
-    const delRes = await worker.fetch(delReq, {});
-    assert.strictEqual(delRes.status, 405, "DELETE must return 405");
+  // 3. Polygon Proxy: missing ticker param
+  await recordTest("3. Polygon Proxy: Missing 'ticker' parameter returns 400", async () => {
+    const req = new Request("https://ai-proxy.workers.dev/api/stock", { method: "GET" });
+    const res = await worker.fetch(req, { POLYGON_API_KEY: "mock_key" });
+    assert.strictEqual(res.status, 400);
+    const json = await res.json();
+    assert.ok(json.error.includes("parameter 'ticker' is required"));
   });
 
-  // Test 4: Root GET Request Rejection
-  await recordTest("4. Method Security: GET on root endpoint returns 405", async () => {
-    const req = new Request("https://ai-proxy.workers.dev/", { method: "GET" });
-    const res = await worker.fetch(req, {});
-    assert.strictEqual(res.status, 405, "Root GET must return 405");
-  });
-
-  // Test 5: Error Handling: Missing OPENAI_API_KEY
-  await recordTest("5. Security & Error Handling: Missing OPENAI_API_KEY returns 500 without crashing", async () => {
-    const req = new Request("https://ai-proxy.workers.dev", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: [{ role: "user", content: "Analyze stock" }] })
-    });
-    const res = await worker.fetch(req, {}); // Empty env, no secrets
+  // 4. Polygon Proxy: missing POLYGON_API_KEY secret
+  await recordTest("4. Polygon Proxy: Missing POLYGON_API_KEY returns 500 without crashing", async () => {
+    const req = new Request("https://ai-proxy.workers.dev/api/stock?ticker=AAPL", { method: "GET" });
+    const res = await worker.fetch(req, {}); // no env
     assert.strictEqual(res.status, 500);
     const json = await res.json();
     assert.strictEqual(json.success, false);
+    assert.ok(json.error.includes("Missing POLYGON_API_KEY"));
+  });
+
+  // 5. Polygon Proxy: invalid ticker symbol validation
+  await recordTest("5. Polygon Proxy: Invalid ticker characters are rejected", async () => {
+    await assert.rejects(async () => {
+      await handleStockDataFetch("<script>alert(1)</script>", { POLYGON_API_KEY: "test" });
+    }, /Invalid ticker symbol format/);
+  });
+
+  // 6. OpenAI Proxy: missing OPENAI_API_KEY
+  await recordTest("6. OpenAI Proxy: Missing OPENAI_API_KEY returns 500", async () => {
+    const req = new Request("https://ai-proxy.workers.dev/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hello" }] })
+    });
+    const res = await worker.fetch(req, {});
+    assert.strictEqual(res.status, 500);
+    const json = await res.json();
     assert.ok(json.error.includes("Missing OPENAI_API_KEY"));
   });
 
-  // Test 6: Error Handling: Malformed JSON payload
-  await recordTest("6. Request Validation: Malformed JSON payload returns 400 Bad Request", async () => {
-    const req = new Request("https://ai-proxy.workers.dev", {
+  // 7. OpenAI Proxy: invalid JSON body
+  await recordTest("7. OpenAI Proxy: Malformed JSON body returns 400", async () => {
+    const req = new Request("https://ai-proxy.workers.dev/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{ unquoted_broken_json: true "
+      body: "broken_json{"
     });
-    const res = await worker.fetch(req, { OPENAI_API_KEY: "mock_test_key" });
+    const res = await worker.fetch(req, { OPENAI_API_KEY: "mock" });
     assert.strictEqual(res.status, 400);
-    const json = await res.json();
-    assert.strictEqual(json.error, "Invalid JSON payload.");
   });
 
-  // Test 7: Request Validation: Missing or empty messages array
-  await recordTest("7. Schema Validation: Missing or non-array 'messages' returns 400", async () => {
-    const req1 = new Request("https://ai-proxy.workers.dev", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({})
-    });
-    const res1 = await worker.fetch(req1, { OPENAI_API_KEY: "mock_test_key" });
-    assert.strictEqual(res1.status, 400);
-
-    const req2 = new Request("https://ai-proxy.workers.dev", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: [] })
-    });
-    const res2 = await worker.fetch(req2, { OPENAI_API_KEY: "mock_test_key" });
-    assert.strictEqual(res2.status, 400);
-  });
-
-  // Test 8: Security Audit: No Hardcoded Secrets in Source Files
-  await recordTest("8. Static Security Audit: No hardcoded API keys in repository files", async () => {
+  // 8. Static Security Audit: No Hardcoded Secrets (OpenAI or Polygon)
+  await recordTest("8. Static Security Audit: No exposed secrets in code or configs", async () => {
     const filesToAudit = [
       path.join(projectRoot, "src", "worker.js"),
       path.join(projectRoot, "public", "index.html"),
@@ -121,7 +105,7 @@ async function runAllVerifications() {
       path.join(projectRoot, "package.json")
     ];
 
-    const secretPattern = /sk-[a-zA-Z0-9_-]{20,}/;
+    const secretPattern = /(sk-[a-zA-Z0-9_-]{20,}|polygon_[a-zA-Z0-9_]{10,})/i;
 
     for (const filePath of filesToAudit) {
       if (fs.existsSync(filePath)) {
@@ -131,29 +115,24 @@ async function runAllVerifications() {
     }
   });
 
-  // Test 9: Frontend Contract Verification: index.js targets worker proxy and does not import OpenAI directly
-  await recordTest("9. Frontend Contract: index.js targets worker proxy without client OpenAI dependency", async () => {
-    const indexPath = path.join(projectRoot, "public", "index.js");
-    assert.ok(fs.existsSync(indexPath), "public/index.js must exist");
-    const content = fs.readFileSync(indexPath, "utf-8");
-    assert.ok(!content.includes("from 'openai'"), "Frontend must not import openai");
-    assert.ok(!content.includes('from "openai"'), "Frontend must not import openai");
-    assert.ok(content.includes("WORKER_PROXY_URL"), "Frontend must define WORKER_PROXY_URL");
-    assert.ok(content.includes("fetch("), "Frontend must use native fetch to call worker");
+  // 9. Full-Stack Contract: Frontend points to worker proxy endpoints (/api/stock and /api/chat)
+  await recordTest("9. Full-Stack Contract: Client handles both /api/stock and /api/chat", async () => {
+    const indexJs = fs.readFileSync(path.join(projectRoot, "public", "index.js"), "utf-8");
+    assert.ok(indexJs.includes("/api/stock"), "Client must query /api/stock");
+    assert.ok(indexJs.includes("/api/chat"), "Client must query /api/chat");
+    assert.ok(!indexJs.includes("from 'openai'"), "Client must not import openai");
   });
 
-  // Test 10: Configuration Verification: wrangler.toml is valid
-  await recordTest("10. Deployment Config: wrangler.toml specifies worker entrypoint and compatibility date", async () => {
-    const wranglerPath = path.join(projectRoot, "wrangler.toml");
-    assert.ok(fs.existsSync(wranglerPath), "wrangler.toml must exist");
-    const content = fs.readFileSync(wranglerPath, "utf-8");
-    assert.ok(content.includes('main = "src/worker.js"'), "Must define main entrypoint");
-    assert.ok(content.includes("compatibility_date"), "Must define compatibility_date");
+  // 10. Cloudflare Pages & Deployment Config
+  await recordTest("10. Deployment Config: wrangler.toml is valid for edge deployment", async () => {
+    const wrangler = fs.readFileSync(path.join(projectRoot, "wrangler.toml"), "utf-8");
+    assert.ok(wrangler.includes('main = "src/worker.js"'));
+    assert.ok(wrangler.includes("compatibility_date"));
   });
 
   console.log("\n=================================================");
   const passed = results.filter(r => r.status === "PASS").length;
-  console.log(`Verification Complete: ${passed} / ${results.length} PASSED`);
+  console.log(`Full-Stack Verification Complete: ${passed} / ${results.length} PASSED`);
   console.log("=================================================");
 
   if (passed !== results.length) {

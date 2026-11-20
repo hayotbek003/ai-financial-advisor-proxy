@@ -93,7 +93,32 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.result-box h2 {
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.stat-item {
+  background: #0f172a;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  display: flex;
+  justify-content: space-between;
+}
+
+.stat-label {
+  color: #94a3b8;
+}
+
+.stat-val {
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.result-box h2, .stock-stats h2 {
   font-size: 1.25rem;
   color: #38bdf8;
   margin-bottom: 16px;
