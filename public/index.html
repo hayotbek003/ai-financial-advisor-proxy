@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Stock Advisor | Secure Deployment</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📈 AI Financial & Stock Market Advisor</h1>
+      <p class="subtitle">Secure Edge-Proxy Architecture with Cloudflare Workers</p>
+    </header>
+
+    <main>
+      <section class="card query-box">
+        <label for="stockInput">Enter Stock Ticker or Question:</label>
+        <div class="input-row">
+          <input type="text" id="stockInput" placeholder="e.g., TSLA, AAPL, MSFT earnings analysis..." value="AAPL">
+          <button id="askBtn">Analyze Stock</button>
+        </div>
+      </section>
+
+      <section class="card result-box">
+        <h2>AI Analysis & Market Outlook</h2>
+        <div id="loader" class="loader hidden">Consulting AI advisor...</div>
+        <div id="resultContent" class="result-content">Click "Analyze Stock" to request secure financial insight through the Cloudflare Worker proxy.</div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Architecture: Client (Cloudflare Pages) ➔ Edge Proxy (Cloudflare Worker) ➔ OpenAI API (GPT-4)</p>
+    </footer>
+  </div>
+  <script src="index.js"></script>
+</body>
+</html>
