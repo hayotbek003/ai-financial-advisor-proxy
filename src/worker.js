@@ -69,7 +69,10 @@ export async function handleOpenAIChat(messages, model, temperature, max_tokens,
     throw new Error("Missing OPENAI_API_KEY secret in environment configuration.");
   }
 
-  const baseURL = env.AI_GATEWAY_URL || "https://api.openai.com/v1";
+  // Use direct OpenAI endpoint unless a valid custom AI Gateway is configured (not the dummy "default" placeholder)
+  const baseURL = (env.AI_GATEWAY_URL && !env.AI_GATEWAY_URL.includes("/default/"))
+    ? env.AI_GATEWAY_URL
+    : "https://api.openai.com/v1";
   const url = `${baseURL.replace(/\/+$/, "")}/chat/completions`;
 
   const response = await fetch(url, {
