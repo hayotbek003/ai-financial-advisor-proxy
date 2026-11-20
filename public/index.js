@@ -1,4 +1,4 @@
-const WORKER_PROXY_URL = "http://localhost:8787";
+const WORKER_PROXY_URL = "https://ai-financial-advisor-proxy.dostbekovhayotbek20.workers.dev";
 
 const stockInput = document.getElementById("stockInput");
 const askBtn = document.getElementById("askBtn");
