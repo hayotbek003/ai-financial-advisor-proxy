@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 /**
  * Standard CORS headers allowing client-side applications
  * to safely communicate with this edge proxy.
@@ -12,7 +10,7 @@ export const corsHeaders = {
 };
 
 /**
- * Helper to fetch and aggregate stock market data from Polygon.io
+ * Helper to fetch stock market data from Polygon.io
  * securely on the server without exposing POLYGON_API_KEY to the browser.
  */
 export async function handleStockDataFetch(ticker, env) {
@@ -25,7 +23,6 @@ export async function handleStockDataFetch(ticker, env) {
     throw new Error("Invalid ticker symbol format.");
   }
 
-  // Fetch previous day's close and aggregate statistics
   const polygonUrl = `https://api.polygon.io/v2/aggs/ticker/${cleanTicker}/prev?adjusted=true&apiKey=${env.POLYGON_API_KEY}`;
   
   let response;
@@ -63,6 +60,44 @@ export async function handleStockDataFetch(ticker, env) {
   };
 }
 
+/**
+ * Native Edge implementation for OpenAI Chat Completions
+ * Runs on standard V8 fetch without requiring heavy bundler polyfills.
+ */
+export async function handleOpenAIChat(messages, model, temperature, max_tokens, env) {
+  if (!env.OPENAI_API_KEY) {
+    throw new Error("Missing OPENAI_API_KEY secret in environment configuration.");
+  }
+
+  const baseURL = env.AI_GATEWAY_URL || "https://api.openai.com/v1";
+  const url = `${baseURL.replace(/\/+$/, "")}/chat/completions`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: model || "gpt-4",
+      messages,
+      temperature: temperature ?? 0.2,
+      max_tokens: max_tokens || 500
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  return {
+    message: data.choices[0].message,
+    usage: data.usage
+  };
+}
+
 export default {
   async fetch(request, env, ctx) {
     // 1. Handle CORS Preflight (OPTIONS request)
@@ -75,9 +110,15 @@ export default {
 
     const url = new URL(request.url);
 
-    // 2. Health check endpoint
-    if (request.method === "GET" && url.pathname === "/health") {
-      return new Response(JSON.stringify({ status: "ok", service: "ai-proxy" }), {
+    // 2. Health check endpoint (GET /health)
+    if (request.method === "GET" && (url.pathname === "/health" || url.pathname === "/api/health")) {
+      return new Response(JSON.stringify({
+        status: "ok",
+        service: "ai-financial-advisor-proxy",
+        timestamp: new Date().toISOString(),
+        hasOpenAIKey: Boolean(env.OPENAI_API_KEY),
+        hasPolygonKey: Boolean(env.POLYGON_API_KEY)
+      }), {
         status: 200,
         headers: {
           ...corsHeaders,
@@ -122,10 +163,6 @@ export default {
     // 4. OpenAI Chat Completions Proxy (POST / or POST /api/chat)
     if (request.method === "POST" && (url.pathname === "/" || url.pathname === "/api/chat")) {
       try {
-        if (!env.OPENAI_API_KEY) {
-          throw new Error("Missing OPENAI_API_KEY secret in environment configuration.");
-        }
-
         let body;
         try {
           body = await request.json();
@@ -151,24 +188,12 @@ export default {
           });
         }
 
-        const clientConfig = { apiKey: env.OPENAI_API_KEY };
-        if (env.AI_GATEWAY_URL) {
-          clientConfig.baseURL = env.AI_GATEWAY_URL;
-        }
-
-        const openai = new OpenAI(clientConfig);
-
-        const completion = await openai.chat.completions.create({
-          model,
-          messages,
-          temperature,
-          max_tokens
-        });
+        const chatResult = await handleOpenAIChat(messages, model, temperature, max_tokens, env);
 
         return new Response(JSON.stringify({
           success: true,
-          data: completion.choices[0].message,
-          usage: completion.usage
+          data: chatResult.message,
+          usage: chatResult.usage
         }), {
           status: 200,
           headers: {
@@ -191,7 +216,7 @@ export default {
       }
     }
 
-    // Default 405 for unrecognized paths/methods
+    // Default 405 for unrecognized endpoints
     return new Response(JSON.stringify({ error: "Endpoint or method not allowed." }), {
       status: 405,
       headers: {
