@@ -82,7 +82,7 @@ export async function handleOpenAIChat(messages, model, temperature, max_tokens,
       "Authorization": `Bearer ${env.OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: model || "gpt-4",
+      model: model || "gpt-4o-mini",
       messages,
       temperature: temperature ?? 0.2,
       max_tokens: max_tokens || 500
@@ -179,7 +179,7 @@ export default {
           });
         }
 
-        const { messages, model = "gpt-4", temperature = 0.2, max_tokens = 500 } = body;
+        const { messages, model = "gpt-4o-mini", temperature = 0.2, max_tokens = 500 } = body;
 
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
           return new Response(JSON.stringify({ error: "Field 'messages' must be a non-empty array." }), {

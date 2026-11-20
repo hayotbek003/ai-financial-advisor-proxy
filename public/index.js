@@ -67,7 +67,7 @@ askBtn.addEventListener("click", async () => {
             content: contextPrompt
           }
         ],
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         temperature: 0.2
       })
     });
